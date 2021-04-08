@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,38 +8,43 @@ public class playerController : MonoBehaviour
     public float speed;
     public float jumpHeight;
 
-    private bool grounded = true;
-
     public bool p1 = true;
     public bool p2 = false;
-    Rigidbody2D rb;//for handling rigidbody
+    public int lives = 3;
     SpriteRenderer sr; // for flipping the sprite when going left or right
-    PlayerBaseClass playerClass;
-
-    KeyCode moveLeft,moveRight,jump;
+    Rigidbody2D rb;//for handling rigidbody
+    private KeyCode moveLeft, moveRight, jump;
+    public bool grounded = true;
     // Start is called before the first frame update
+
     void Start()
     {
+        //sets up controls depending if player 1 or 2 character
         if (p1)
         {
             moveLeft = KeyCode.A;
             moveRight = KeyCode.D;
             jump = KeyCode.W;
-        } else if (p2)
+        }
+        else if (p2)
         {
             moveLeft = KeyCode.J;
             moveRight = KeyCode.L;
             jump = KeyCode.I;
         }
-        playerClass = GetComponent<PlayerBaseClass>();
-        speed = playerClass.GetSpeed();
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
+
+
     }
 
     // Update is called once per frame
     void Update()
     {
+        if (lives <= 0)
+        {
+            //do something
+        }
         if (Input.GetKey(moveLeft))//moving left
         {
             if (sr.flipX == true)
@@ -53,7 +59,7 @@ public class playerController : MonoBehaviour
         }
         if (Input.GetKey(jump))//can also jump while moving
         {
-            if (grounded)
+            if (grounded)//checking that we're on a platform so we can jump
             {
                 print("Jumping");
                 grounded = false;
@@ -62,19 +68,28 @@ public class playerController : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter2D(Collision2D other)
+    private void OnTriggerEnter2D(Collider2D other)
     {
-        Vector2 cp = other.contacts[0].point;//get the contact point of the collision
-        Vector2 center = other.collider.bounds.center;//get the center of the collider
         
-        float pdc = other.gameObject.transform.position.magnitude / 2;//points distance from center
-        if (other.gameObject.tag == "Platform")
+        Vector2 cp = other.ClosestPoint(transform.position);//get the contact point of the collision
+        Vector2 center = other.bounds.center;//get the center of the collider
+
+        //Checking that the player is on a platform for jumping
+        if (other.gameObject.CompareTag("Platform"))
         {
-            if (cp.y > center.y )
+            if (cp.y > center.y)
             {
                 print("Hit top");
                 grounded = true;
             }
+        }
+        
+    }
+    private void OnCollisionEnter2D(Collision2D other)
+    {
+        if (other.gameObject.CompareTag("Player"))
+        {
+            return;
         }
     }
 }
