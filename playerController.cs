@@ -8,8 +8,11 @@ public class playerController : MonoBehaviour
     public float speed;
     public float jumpHeight;
 
+    
     public bool p1 = true;
     public bool p2 = false;
+    public int hp;//hit points, how many times to get hit before die
+    public int atk, def;
     public int lives = 3;
     SpriteRenderer sr; // for flipping the sprite when going left or right
     Rigidbody2D rb;//for handling rigidbody
