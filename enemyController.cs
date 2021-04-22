@@ -11,14 +11,27 @@ public class enemyController : MonoBehaviour
 
     public float speed;
     public float jumpHeight;
-
+    public float inRange;
+    public bool isWalking = false;
     public int coinsDrop;//this is how score is calculated
     public int hp, atk, def;
-    GameObject[] go;
     public GameObject target;
+    public string[] enemyAnim;
     
-    GameManager gm;//gamemanager script reference
+    
+    GameObject[] go;
+    
+    Animator anim;
+    AnimationCycle animCyc = 0;
 
+    GameManager gm;//gamemanager script reference
+    enum AnimationCycle
+    {
+        IDLE = 0,
+        WALK,
+        JUMP,
+        ATTACK
+    }
     //gets called once during start up and when it kills it's target to give it a player to go after
     void getTarget()
     {
@@ -54,36 +67,47 @@ public class enemyController : MonoBehaviour
         ///check if the target is dead
         ///     If so then get a new target otherwise keep going
     }
+
+
     // Start is called before the first frame update
     void Start()
     {
+        anim = GetComponent<Animator>();
         gm = FindObjectOfType<GameManager>();//give it a reference to the GameManager
         this.transform.parent = gm.stage.transform;
         getTarget();
     }
 
-    void Die()
-    {
-        gm.enemiesSpawned--;
-        Destroy(this.gameObject);
-    }
     // Update is called once per frame
     void Update()
     {
 
 
+        float distanceToTarget = Vector2.Distance(transform.position, target.transform.position);
+        print("Distance from " + name + " to " + target.name + ": " + distanceToTarget);
+        if (distanceToTarget <= inRange)
+            animCyc = AnimationCycle.ATTACK;
+        else
+        {
+            animCyc = AnimationCycle.IDLE;
+        }
         ///check if the target is within a certain range
+        if (isWalking)
+            animCyc = AnimationCycle.WALK;
         ///depending if this enemy is ranged or melee
         ///IF target is within range then attack
 
+        anim.Play(enemyAnim[(int)animCyc]);
 
         if (hp <= 0)
         {
-
             Die();
         }
-
-
+    }
+    void Die()
+    {
+        gm.enemiesSpawned--;
+        Destroy(this.gameObject);
     }
 
 }
