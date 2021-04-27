@@ -5,9 +5,11 @@ using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
+    //public variables
     public int enemiesSpawned = 0;
     public int needToBeat;//how many enemies need to be beaten to pass this wave
     public int defeatedEnemies;//how many enemies have been defeated
+    public static int playerCount;
 
     public GameObject ninja, knight, samurai; //player characters
     public GameObject sp1, sp2;//spawn points for player 1 and 2
@@ -15,17 +17,19 @@ public class GameManager : MonoBehaviour
     public GameObject stage; //reference to the stage
     public GameObject eSpawn;//enemy spawn point - this will have a reference to a parent gameObject that holds all the enemy spawn points
     public GameObject[] enemies;//array of enemies
-
     public Sprite boxTex;
     public Sprite pOneInd, pTwoInd; //player indicators for who is who for when players pick the same character
     public Texture[] player1Controls, player2Controls;
+    public Text p1Lives, p2Lives, p1LivesDisp, p2LivesDisp;
+    //private variables
+    playerController p1, p2;//playerController reference for both players
     bool oneP;//for checking how many players. true = one player, false = two players
     bool onePicking = false, twoPicking = false;//for checking which player picked a character
     bool howToPlay = false;
+    bool gameOver = false;
     // Start is called before the first frame update
     void Start()
     {
-
         //checking if everything is set active and inactive as it should be
         if (stage.activeSelf)
             stage.SetActive(false);
@@ -40,7 +44,18 @@ public class GameManager : MonoBehaviour
     {
         if (stage.activeSelf)//only run this if the stage is active
         {
-            if (enemiesSpawned < 2 && defeatedEnemies < needToBeat) //spawn enemies whenever there are less than this number or the max defeated enemies has been reached for this wave
+            p1Lives.text = p1.lives.ToString();
+            if (!oneP) { 
+                p2Lives.text = p2.lives.ToString();
+            }
+            print(playerCount);
+            if(playerCount <= 0)
+            {
+                print("GAME IS DONE");
+                gameOver = true;
+                quitButton();
+            }
+            if (enemiesSpawned < 3 && defeatedEnemies < needToBeat) //spawn enemies whenever there are less than this number or the max defeated enemies has been reached for this wave
                 SpawnEnemy();
             //else
             //spawn boss
@@ -77,6 +92,7 @@ public class GameManager : MonoBehaviour
                 break;
         }
         temp.transform.parent = stage.transform;
+        playerCount++;
         return temp;
     }
     //for spawning enemies to the stage
@@ -101,10 +117,11 @@ public class GameManager : MonoBehaviour
         GameObject temp;
         if (onePicking)
         {
-
             temp = SetupCharacter(sChar, sp1.transform);
-            temp.GetComponent<playerController>().p1 = true;
-            print("Player 1 picked the " + temp.name);
+            p1 = temp.GetComponent<playerController>();
+            p1.p1 = true;
+            p1.spawn = sp1;
+            p1Lives.text = p1.lives.ToString();
             temp.transform.Find("PlayerIndicator").GetComponent<SpriteRenderer>().sprite = pOneInd;
             //if 2 players was selected then set onePicking to false and twoPicking to true to let second player pick their character
             if (!oneP)
@@ -116,6 +133,8 @@ public class GameManager : MonoBehaviour
             }
             else
             {
+                //p2LivesDisp.enabled = false;
+                p2LivesDisp.gameObject.SetActive(false);
                 onePicking = false;
                 charSelect.SetActive(false);
                 stage.SetActive(true);
@@ -124,9 +143,11 @@ public class GameManager : MonoBehaviour
         else if (twoPicking)
         {
             temp = SetupCharacter(sChar, sp2.transform);
-            temp.GetComponent<playerController>().p2 = true;
+            p2 = temp.GetComponent<playerController>();
+            p2.p2 = true;
+            p2.spawn = sp2;
+            p2Lives.text = p2.lives.ToString();
             temp.transform.Find("PlayerIndicator").GetComponent<SpriteRenderer>().sprite = pTwoInd;
-            print("Player 2 picked the " + temp.name);
             twoPicking = false;
             charSelect.SetActive(false);
             stage.SetActive(true);
@@ -174,15 +195,16 @@ public class GameManager : MonoBehaviour
             textStyle.normal.textColor = Color.white;
             GUI.Box(box, "How to play", boxStyle);
 
-            GUI.Label(textArea, "\t\t\tPlayer 1:\t\t\t\tPlayer 2:\n\nJump\n\n\n\n\nMove Left\n\n\n\n\nMove Right", textStyle);
+            GUI.Label(textArea, "\t\t\tPlayer 1:\t\t\t\tPlayer 2:\n\nJump\n\n\n\nMove Left\n\n\n\nMove Right\n\n\n\nAttack", textStyle);
 
             GUI.DrawTexture(new Rect(box.x + 305, box.y + 90, 30, 32), player1Controls[0]);
-            GUI.DrawTexture(new Rect(box.x + 305, box.y + 190, 30, 32), player1Controls[1]);
-            GUI.DrawTexture(new Rect(box.x + 305, box.y + 290, 30, 32), player1Controls[2]);
-
+            GUI.DrawTexture(new Rect(box.x + 305, box.y + 170, 30, 32), player1Controls[1]);
+            GUI.DrawTexture(new Rect(box.x + 305, box.y + 260, 30, 32), player1Controls[2]);
+            GUI.DrawTexture(new Rect(box.x + 305, box.y + 340, 30, 32), player1Controls[3]);
             GUI.DrawTexture(new Rect(box.x + 630, box.y + 90, 30, 32), player2Controls[0]);
-            GUI.DrawTexture(new Rect(box.x + 630, box.y + 190, 30, 32), player2Controls[1]);
-            GUI.DrawTexture(new Rect(box.x + 630, box.y + 290, 30, 32), player2Controls[2]);
+            GUI.DrawTexture(new Rect(box.x + 630, box.y + 170, 30, 32), player2Controls[1]);
+            GUI.DrawTexture(new Rect(box.x + 630, box.y + 260, 30, 32), player2Controls[2]);
+            GUI.DrawTexture(new Rect(box.x + 630, box.y + 340, 30, 32), player2Controls[3]);
 
             if (GUI.Button(new Rect(box.width / 2, box.height - 10, 150, 60), "Back"))
             {
@@ -190,6 +212,11 @@ public class GameManager : MonoBehaviour
                 howToPlay = false;
                 mainMenu.SetActive(true);
             }
+        }
+
+        if (gameOver)
+        {
+            //show game over screen
         }
     }
 }
