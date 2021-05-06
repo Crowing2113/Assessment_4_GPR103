@@ -3,7 +3,24 @@ guid: 933afa72bbd1f3b4ea5b16f7850b8a7a
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - ninja: {fileID: 4107753166574694300, guid: 72d6f31256d04474fab1cfb0dfe10fee, type: 3}
+  - knight: {instanceID: 0}
+  - samurai: {instanceID: 0}
+  - sp1: {instanceID: 0}
+  - sp2: {instanceID: 0}
+  - mainMenu: {instanceID: 0}
+  - charSelect: {instanceID: 0}
+  - stage: {instanceID: 0}
+  - eSpawn: {instanceID: 0}
+  - boxTex: {instanceID: 0}
+  - pOneInd: {instanceID: 0}
+  - pTwoInd: {instanceID: 0}
+  - p1Lives: {instanceID: 0}
+  - p2Lives: {instanceID: 0}
+  - p1LivesDisp: {instanceID: 0}
+  - p2LivesDisp: {instanceID: 0}
+  - scoreDisp: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

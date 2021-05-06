@@ -7,25 +7,29 @@ public class playerController : MonoBehaviour
 {
     public float speed;
     public float jumpHeight;
-    public float attackSpeed;
+    public float attackAnimSpeed;
+    public  float attackReset;
 
     public bool p1 = true;
     public bool p2 = false;
+    public bool ranged;
     public int hp, startHp;//current hp and starting HP, this will set the HP when respawning
     public int atk, def;
     public int lives = 3;
     public string[] playerAnim;//array of animations to be set in Inspector NOTE: Make sure the names match the animation names
     public GameObject atkHitBox;
     public GameObject spawn;
+    public GameObject proj = null; //projectile for ranged attack (if character is a ranged character
 
-
+    private KeyCode moveLeft, moveRight, jump, attackKey;
     private Vector3 scale;
     private Vector2 currentVelocity;
-    SpriteRenderer sr; // for flipping the sprite when going left or right
-    Rigidbody2D rb;//rigidbody reference
-    Animator anim;
-    private KeyCode moveLeft, moveRight, jump, attackKey;
-    AnimationCycle animCycle; //to control the animation cycle (i.e. when walking will set this to the walking animation)
+    private SpriteRenderer sr; // for flipping the sprite when going left or right
+    private Rigidbody2D rb;//rigidbody reference
+    private Animator anim;
+    private AnimationCycle animCycle; //to control the animation cycle (i.e. when walking will set this to the walking animation)
+    [SerializeField]
+    private float attackCooldown;
 
     bool isAttacking = false;
     [SerializeField]
@@ -50,6 +54,7 @@ public class playerController : MonoBehaviour
 
     void Start()
     {
+        attackCooldown = attackReset;
         hp = startHp;
         if (atkHitBox.activeInHierarchy)
             atkHitBox.SetActive(false);
@@ -77,10 +82,9 @@ public class playerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-
         currentVelocity = rb.velocity;
         scale = transform.localScale;
-
+        attackCooldown += Time.deltaTime;
         groundedTimer += Time.deltaTime;
         if (Input.GetKey(moveLeft))//moving left
         {
@@ -135,7 +139,7 @@ public class playerController : MonoBehaviour
         }
 
         //checking input for attacking
-        if (Input.GetKey(attackKey) && !isAttacking)
+        if (Input.GetKeyDown(attackKey) && !isAttacking && attackCooldown >= attackReset)
         {
             StartCoroutine(Attack());
         }
@@ -143,6 +147,28 @@ public class playerController : MonoBehaviour
         anim.Play(playerAnim[(int)animCycle]); //plays what animCycle has been set to
         rb.velocity = currentVelocity;
         transform.localScale = scale;
+    }
+    IEnumerator Attack()
+    {
+        isAttacking = true;
+        SetAnimBool(false, false, false, isAttacking, isJumping);
+        print("attacking");
+        animCycle = AnimationCycle.ATTACK;
+        yield return new WaitForSeconds(attackAnimSpeed);
+        if (ranged){
+            Transform t = atkHitBox.transform;
+            GameObject go =Instantiate(proj, t.position,Quaternion.identity);
+            //if the character is facing left then multiply the projectile speed by -1
+            if(transform.localScale.x == -1)
+            {
+                go.GetComponent<Projectile>().speed *= -1;
+            }
+            go.GetComponent<Projectile>().dmg = atk;
+            go.GetComponent<Projectile>().pProj = true;
+            //yield return new WaitForSeconds(attackSpeed*2);
+        }
+        attackCooldown = 0;
+        isAttacking = false;
     }
 
     void CheckHP()
@@ -153,7 +179,6 @@ public class playerController : MonoBehaviour
             {
                 print(name + " has died");
                 GameManager.playerCount--;
-                //Destroy(this.gameObject);
             }
             else
             {
@@ -180,16 +205,6 @@ public class playerController : MonoBehaviour
         anim.SetBool("isAttacking", attack);
         anim.SetBool("isJumping", jump);
     }
-    IEnumerator Attack()
-    {
-        isAttacking = true;
-        SetAnimBool(false, false, false, isAttacking, isJumping);
-        print("attacking");
-        animCycle = AnimationCycle.ATTACK;
-        yield return new WaitForSeconds(attackSpeed);
-        isAttacking = false;
-        //atkHitBox.SetActive(false);
-    }
 
 
     public void TakeDamage(int atk)
@@ -202,6 +217,14 @@ public class playerController : MonoBehaviour
         print(name + " has taken " + tDmg + " and has " + hp + " hp left");
     }
 
+    private void OnCollisionExit2D(Collision2D other)
+    {
+        //for handling walking off platform so player can't jump in mid air 
+        if (other.gameObject.CompareTag("Platform"))
+        {
+            grounded = false;
+        }
+    }
     private void OnCollisionEnter2D(Collision2D other)
     {
         if (other.gameObject.CompareTag("Player"))
@@ -213,7 +236,6 @@ public class playerController : MonoBehaviour
         {
             if (Vector2.Dot(other.contacts[i].normal, Vector2.up) > 0.9f)
             {
-                print("GROUNDED");
                 anim.SetBool("isIdle", true);
                 anim.SetBool("isJumping", false);
                 grounded = true;
