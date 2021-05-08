@@ -16,7 +16,6 @@ public class playerAtkBox : MonoBehaviour
     {
         if (other.transform.CompareTag("Enemy"))
         {
-            print(name + " is attaking " + other.name);
             other.GetComponent<enemyController>().TakeDamage(parent.atk);
         }
     }

@@ -7,8 +7,8 @@ public class playerController : MonoBehaviour
 {
     public float speed;
     public float jumpHeight;
-    public float attackAnimSpeed;
-    public  float attackReset;
+    public float animWaitTime;
+    public float attackReset;
 
     public bool p1 = true;
     public bool p2 = false;
@@ -48,6 +48,7 @@ public class playerController : MonoBehaviour
         WALK_R,
         JUMP,
         ATTACK,
+        HIT,
         DIE
     }
 
@@ -86,6 +87,7 @@ public class playerController : MonoBehaviour
         scale = transform.localScale;
         attackCooldown += Time.deltaTime;
         groundedTimer += Time.deltaTime;
+
         if (Input.GetKey(moveLeft))//moving left
         {
             //show walking animation only when the playre is not jumping and is not attacking
@@ -121,7 +123,6 @@ public class playerController : MonoBehaviour
                 animCycle = AnimationCycle.IDLE_L;
                 anim.SetBool("facingRight", false);
             }
-
             SetAnimBool(true, false, false, false, false);
             currentVelocity.x = 0;
         }
@@ -137,40 +138,52 @@ public class playerController : MonoBehaviour
                 currentVelocity.y = jumpHeight;
             }
         }
-
         //checking input for attacking
         if (Input.GetKeyDown(attackKey) && !isAttacking && attackCooldown >= attackReset)
         {
             StartCoroutine(Attack());
         }
 
+
         anim.Play(playerAnim[(int)animCycle]); //plays what animCycle has been set to
         rb.velocity = currentVelocity;
         transform.localScale = scale;
+
     }
     IEnumerator Attack()
     {
         isAttacking = true;
+        currentVelocity.x = 0;
         SetAnimBool(false, false, false, isAttacking, isJumping);
-        print("attacking");
         animCycle = AnimationCycle.ATTACK;
-        yield return new WaitForSeconds(attackAnimSpeed);
-        if (ranged){
+        yield return new WaitForSeconds(animWaitTime);
+        if (ranged)
+        {
             Transform t = atkHitBox.transform;
-            GameObject go =Instantiate(proj, t.position,Quaternion.identity);
+            GameObject go = Instantiate(proj, t.position, Quaternion.identity);
             //if the character is facing left then multiply the projectile speed by -1
-            if(transform.localScale.x == -1)
+            if (transform.localScale.x == -1)
             {
                 go.GetComponent<Projectile>().speed *= -1;
             }
             go.GetComponent<Projectile>().dmg = atk;
             go.GetComponent<Projectile>().pProj = true;
+            go.GetComponent<Projectile>().parent = this.gameObject;
             //yield return new WaitForSeconds(attackSpeed*2);
         }
         attackCooldown = 0;
         isAttacking = false;
     }
-
+    
+    void Die()
+    {
+        animCycle = AnimationCycle.DIE;
+        anim.SetBool("isDead",true);
+        SetAnimBool(false, false, false, false, false);
+        GameManager.playerCount--;
+        GameManager.SetPlayerActive(this.gameObject, false);   
+    }
+    
     void CheckHP()
     {
         if (hp <= 0)
@@ -178,12 +191,12 @@ public class playerController : MonoBehaviour
             if (lives <= 0)
             {
                 print(name + " has died");
-                GameManager.playerCount--;
+                Die();
             }
             else
             {
                 lives--;
-                //animCycle = AnimationCycle.DIE;
+                animCycle = AnimationCycle.DIE;
                 Respawn();
             }
 
@@ -209,13 +222,14 @@ public class playerController : MonoBehaviour
 
     public void TakeDamage(int atk)
     {
+        currentVelocity.x = 0;
         int tDmg = atk - def;
         if (tDmg <= 0)
             tDmg = 1;
-        hp -= tDmg;
+        hp -= tDmg;        
         CheckHP();
-        print(name + " has taken " + tDmg + " and has " + hp + " hp left");
     }
+
 
     private void OnCollisionExit2D(Collision2D other)
     {
@@ -241,6 +255,11 @@ public class playerController : MonoBehaviour
                 grounded = true;
                 isJumping = false;
                 groundedTimer = 0;
+            }
+            if (other.gameObject.CompareTag("Platform") && (Vector2.Dot(other.contacts[i].normal, Vector2.left) > 0.75f || Vector2.Dot(other.contacts[i].normal, Vector2.right) > 0.75f))
+            {
+                currentVelocity.x = 0;
+                currentVelocity.y = -1;
             }
         }
     }

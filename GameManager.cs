@@ -5,18 +5,13 @@ using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
-
-    //TODO:
-    //Fix spawning - make sure enemies don't spawn in the same place
-    //Make new sprites for the rest of the characters
-
-
     //public variables
     public int enemiesSpawned = 0;
     public int needToBeat;//how many enemies need to be beaten to pass this wave
-    public int defeatedEnemies;//how many enemies have been defeated
+    public static int defeatedEnemies;//how many enemies have been defeated
     public static int playerCount;
     public static int score = 0;
+    public static int wave = 1;
 
     public GameObject ninja, knight, samurai; //player characters
     public GameObject sp1, sp2;//spawn points for player 1 and 2
@@ -25,30 +20,38 @@ public class GameManager : MonoBehaviour
     public GameObject stage; //reference to the stage
     public GameObject eSpawn;//enemy spawn point - this will have a reference to a parent gameObject that holds all the enemy spawn points
     public GameObject[] enemies;//array of enemies
-    public GameObject p1Container, p2Container, scoreContainer; //conainters for the p1 and p2 lives display . and container for the score display
+    public GameObject p1Container, p2Container, scoreContainer, waveContainer, highScoreContainer, nextWaveContainer; //conainters for UI elements
     public GameObject p1HealthBar, p2HealthBar;
     public Sprite boxTex;
     public Sprite pOneInd, pTwoInd; //player indicators for who is who for when players pick the same character
     public Texture[] player1Controls, player2Controls;
-    public Text p1Lives, p2Lives, p1LivesDisp, p2LivesDisp, scoreDisp, highScoreText, highScoreNames, gameOverScore;
-    public InputField highScoreNameField;
+    public Text p1LivesDisp, p2LivesDisp; //UI displays for player lives value
+    public Text p1LivesContainer, p2LivesContainer; //UI container for player lives
+    public Text scoreDisp, highScoreDisp; //score display values for in game
+    public Text highScoreText, highScoreNames, gameOverScore; //Text and values to display on the high score screen.
+    //the wave number to display and the display to show how many enemies have been defeated and how many are needed to move onto the next wave
+    public Text waveDisp, nextWaveDisp;
+    public InputField highScoreNameField; //input name for the high score
     public List<GameObject> enemiesInLevel; //a list of enemeis in the level, this used for clean up
-    List<int> highScores = new List<int>();
-    List<string> highScoresNames = new List<string>();
-    //private variables
+    //these should match up all the time.
+    List<int> highScores = new List<int>();//list of high scores
+    List<string> highScoresNames = new List<string>();//list of high scores names
+    Transform[] sArray;//array of spawn points that will be put into a list
+                       //Shuffle the transforms array to get a 
 
+    //private variables
+    int arrIt = 0;
     playerController p1, p2;//playerController reference for both players
     bool oneP;//for checking how many players. true = one player, false = two players
     bool onePicking = false, twoPicking = false;//for checking which player picked a character
     bool howToPlay = false;
     bool paused = false;
-    //bool quitCheck = false;
+    private int maxEnemiesSpawned;//value for the maximum number of enemies to be spawned at once
     // Start is called before the first frame update
     void Start()
     {
-        
-        
-        //setting everything active and inactive jsut to make sure
+        //setting everything active and inactive just to make sure
+        gameOverScreen.SetActive(false);
         pauseScreen.SetActive(false);
         askQuit.SetActive(false);
         stage.SetActive(false);
@@ -60,16 +63,20 @@ public class GameManager : MonoBehaviour
         scoreContainer.SetActive(false);
         p1Container.SetActive(false);
         p2Container.SetActive(false);
+        waveContainer.SetActive(false);
+        highScoreContainer.SetActive(false);
+        nextWaveContainer.SetActive(false);
+        sArray = eSpawn.GetComponentsInChildren<Transform>();
+        ShuffleArray(sArray);
         for (int i = 0; i < 10; i++)
         {
             if (PlayerPrefs.HasKey("highScore_" + i) && PlayerPrefs.HasKey("highScoreName_" + i))
             {
                 highScores.Add(PlayerPrefs.GetInt("highScore_" + i));
                 highScoresNames.Add(PlayerPrefs.GetString("highScoreName_" + i));
-                print("highScores[" + i + "]" + highScores[i] + "highScoresNames[" + i + "]" + highScoresNames[i]);
             }
-
         }
+        SortHighScore();
     }
 
     // Update is called once per frame
@@ -78,13 +85,22 @@ public class GameManager : MonoBehaviour
         //only run this if the stage is active
         if (stage.activeSelf)
         {
+            nextWaveDisp.text = defeatedEnemies.ToString() + "/" + needToBeat.ToString();
+            waveDisp.text = wave.ToString();//to display current wave
             scoreDisp.text = score.ToString();//to display score and keep it updated every frame
-            p1Lives.text = p1.lives.ToString();//to display player 1 lives and keep it updated
+            if (highScores.Count != 0)
+            {
+                highScoreDisp.text = highScores[0].ToString();
+            }
+            else
+                highScoreDisp.text = 0.ToString();
+                
+            p1LivesDisp.text = p1.lives.ToString();//to display player 1 lives and keep it updated
             p1HealthBar.GetComponent<Image>().fillAmount = (float)p1.hp / p1.startHp;//to display player 1 health and keep it updated
             if (!oneP)
             { //if it's 2 player then also display player 2 lives and health
                 p2HealthBar.GetComponent<Image>().fillAmount = (float)p2.hp / p2.startHp;
-                p2Lives.text = p2.lives.ToString();
+                p2LivesDisp.text = p2.lives.ToString();
             }
             if (playerCount <= 0)
             {
@@ -94,7 +110,16 @@ public class GameManager : MonoBehaviour
             }
             if (enemiesSpawned < playerCount * 2 && defeatedEnemies < needToBeat) //spawn enemies whenever there are less than this number or the max defeated enemies has been reached for this wave
                 SpawnEnemy();
-
+            else if (defeatedEnemies >= needToBeat)
+            {
+                //increase the wave, increase the amount of enemies to be defeated bfore moving onto the next wave
+                //reset defeatedEnemies variabled and increase the maximum number of spawned enemies at once
+                wave++;
+                needToBeat += 5;
+                defeatedEnemies = 0;
+                maxEnemiesSpawned += wave % 3;
+            }
+            //pausing the game
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 if (paused)
@@ -109,34 +134,6 @@ public class GameManager : MonoBehaviour
             gameOverScore.text = score.ToString();
         }
     }
-    //sort through a list of highscores to have them in ascending order
-    public void SortHighScore()
-    {
-        bool sorted = false;
-        while (!sorted)
-        {
-            sorted = true;
-            //starting at 1 so we can compare if the previous entry
-            for (int i = 1; i < highScores.Count; i++)
-            {
-                //if the current score is less than the previous one then swap
-                if (highScores[i] > highScores[i - 1])
-                {
-                    int temp = highScores[i];
-                    string tempName = highScoresNames[i];
-                    highScores[i] = highScores[i - 1];
-                    highScoresNames[i] = highScoresNames[i - 1];
-                    highScores[i - 1] = temp;
-                    highScoresNames[i - 1] = tempName;
-                    sorted = false;
-                }
-            }
-        }
-    }
-    public void HowToPlay()
-    {
-        howToPlay = true;
-    }
 
     //function for when player selects 1 or 2 players then switched menu screens
     public void PlayerSelect(bool singlePlay)
@@ -146,26 +143,6 @@ public class GameManager : MonoBehaviour
         charSelect.SetActive(true);
         onePicking = true;
         charSelect.transform.Find("Instructions").GetComponent<Text>().text = "Player 1 select a Character";
-    }
-    public void EnterHighScoreName()
-    {
-
-        highScoresNames.Add(highScoreNameField.text);
-        highScores.Add(score);
-        for (int i = 0; i < highScores.Count; i++)
-        {
-            PlayerPrefs.SetInt("highScore_" + i, highScores[i]);
-            PlayerPrefs.SetString("highScoreName_" + i, highScoresNames[i]);
-        }
-        ClearLevel();
-        CleanupUI();
-        SortHighScore();
-        print("GAME IS DONE");
-        PlayerPrefs.Save();
-        
-        stage.SetActive(false);
-        gameOverScreen.SetActive(false);
-        mainMenu.SetActive(true);
     }
     // function to create a character for the players
     GameObject SetupCharacter(string sChar, Transform spawnPoint)
@@ -202,7 +179,7 @@ public class GameManager : MonoBehaviour
             p1 = temp.GetComponent<playerController>();
             p1.p1 = true;
             p1.spawn = sp1;
-            p1Lives.text = p1.lives.ToString();
+            p1LivesDisp.text = p1.lives.ToString();
             temp.transform.Find("PlayerIndicator").GetComponent<SpriteRenderer>().sprite = pOneInd;
             //if 2 players was selected then set onePicking to false and twoPicking to true to let second player pick their character
             if (!oneP)
@@ -224,37 +201,57 @@ public class GameManager : MonoBehaviour
             p2 = temp.GetComponent<playerController>();
             p2.p2 = true;
             p2.spawn = sp2;
-            p2Lives.text = p2.lives.ToString();
+            p2LivesDisp.text = p2.lives.ToString();
             temp.transform.Find("PlayerIndicator").GetComponent<SpriteRenderer>().sprite = pTwoInd;
             twoPicking = false;
             StartGame();
         }
 
     }
-    //for spawning enemies to the stage
-    void SpawnEnemy()
-    {
-        int i = Random.Range(0, enemies.Length);//get a random value where min is 0 and max is the size of enemies-1 (since arrays start at 0)
-        Transform[] sArray = eSpawn.GetComponentsInChildren<Transform>();//array of spawn points that will be put into a list
-        int j = Random.Range(0, sArray.Length - 2) + 1;
-        print("sArray length = " + sArray.Length);
-        enemiesInLevel.Add(Instantiate(enemies[i], sArray[j]));
-        enemiesSpawned++;
-    }
+    //starting the level
     void StartGame()
     {
         charSelect.SetActive(false);
         stage.SetActive(true);
+        maxEnemiesSpawned = playerCount * 2;
         gameOverScreen.SetActive(false);
+        //set player active jsut incase it was set to inactive
+        SetPlayerActive(p1.gameObject, true);
         //setting all the UI elements to be visible
         p1Container.SetActive(true);
         p1HealthBar.SetActive(true);
         if (!oneP)
         {
+            SetPlayerActive(p2.gameObject, true);
             p2Container.SetActive(true);
             p2HealthBar.SetActive(true);
         }
         scoreContainer.SetActive(true);
+        waveContainer.SetActive(true);
+        highScoreContainer.SetActive(true);
+        nextWaveContainer.SetActive(true);
+    }
+    //for spawning enemies to the stage
+    void SpawnEnemy()
+    {
+
+        int i = Random.Range(0, enemies.Length);//get a random enemy form the enemies array
+        enemiesInLevel.Add(Instantiate(enemies[i], sArray[arrIt]));
+        enemiesSpawned = enemiesInLevel.Count;
+        //increase the array iterator so that the next enemy won't spawn in the same spot
+        arrIt++;
+        if (arrIt >= sArray.Length)
+            arrIt = 0;
+    }
+    void ShuffleArray(Transform[] arr)
+    {
+        for (int i = 0; i < arr.Length; i++)
+        {
+            Transform temp = arr[i];
+            int j = Random.Range(i, arr.Length);
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
     }
     //clear the UI
     void CleanupUI()
@@ -269,6 +266,12 @@ public class GameManager : MonoBehaviour
             p2Container.SetActive(false);
         if (scoreContainer.activeSelf)
             scoreContainer.SetActive(false);
+        if (highScoreContainer.activeSelf)
+            highScoreContainer.SetActive(false);
+        if (waveContainer.activeSelf)
+            waveContainer.SetActive(false);
+        if (nextWaveContainer.activeSelf)
+            nextWaveContainer.SetActive(false);
     }
     //Clearing level
     void ClearLevel()
@@ -282,32 +285,96 @@ public class GameManager : MonoBehaviour
             Destroy(p1.gameObject);
         if (p2 != null)
             Destroy(p2.gameObject);
-        
+
     }
-    public void HighScore()
+    public void EnterHighScoreName()
     {
-        highScoreScreen.SetActive(true);
-        mainMenu.SetActive(false);
+
+        highScoresNames.Add(highScoreNameField.text);
+        highScores.Add(score);
+        SortHighScore();
         for (int i = 0; i < highScores.Count; i++)
         {
-            highScoreText.text += highScores[i].ToString() + "\n";
-            highScoreNames.text += highScoresNames[i] + "\n";
+            PlayerPrefs.SetInt("highScore_" + i, highScores[i]);
+            PlayerPrefs.SetString("highScoreName_" + i, highScoresNames[i]);
+        }
+        ClearLevel();
+        CleanupUI();
+        PlayerPrefs.Save();
+        Time.timeScale = 1;
+        stage.SetActive(false);
+        highScoreNameField.text = "";
+        gameOverScreen.SetActive(false);
+        mainMenu.SetActive(true);
+    }
+    //sort through a list of highscores to have them in ascending order
+    public void SortHighScore()
+    {
+        bool sorted = false;
+        while (!sorted)
+        {
+            sorted = true;
+            //starting at 1 so we can compare if the previous entry
+            for (int i = 1; i < highScores.Count; i++)
+            {
+                //if the current score is less than the previous one then swap
+                if (highScores[i] > highScores[i - 1])
+                {
+                    int temp = highScores[i];
+                    string tempName = highScoresNames[i];
+                    highScores[i] = highScores[i - 1];
+                    highScoresNames[i] = highScoresNames[i - 1];
+                    highScores[i - 1] = temp;
+                    highScoresNames[i - 1] = tempName;
+                    sorted = false;
+                }
+            }
         }
     }
+    //handling the highSCore screen
+    public void HighScore()
+    {
+        //reset the highScore texts to display nothing
+        highScoreText.text = "";
+        highScoreNames.text = "";
+        highScoreScreen.SetActive(true);
+        mainMenu.SetActive(false);
+        SortHighScore();
+        if (highScores.Count >= 0)
+        {
+            for (int i = 0; i < highScores.Count; i++)
+            {
+                highScoreText.text += highScores[i].ToString() + "\n";
+                highScoreNames.text += highScoresNames[i] + "\n";
+            }
+        }
+        else
+        {
+            highScoreText.text = "---";
+            highScoreNames.text = "---";
+        }
+
+
+    }
+    public void HowToPlay()
+    {
+        howToPlay = true;
+    }
+    //pause screen
     public void PauseGame()
     {
         paused = true;
         pauseScreen.SetActive(true);
         Time.timeScale = 0;
     }
-
+    //continue button for pause screen
     public void ContinueButton()
     {
         paused = false;
         pauseScreen.SetActive(false);
         Time.timeScale = 1;
-
     }
+    //Checks if the user hit quit
     public void CheckIfQuit()
     {
         askQuit.SetActive(true);
@@ -338,8 +405,19 @@ public class GameManager : MonoBehaviour
         highScoreScreen.SetActive(false);
         charSelect.SetActive(false);
     }
+    //quitting game function
+    // checks if using unity editor or running in the application
     public void quitGame()
     {
+        //sort the high scores array and save it to PlayerPrefs before quitting
+        SortHighScore();
+        for (int i = 0; i < highScores.Count; i++)
+        {
+            PlayerPrefs.SetInt("highScore_" + i, highScores[i]);
+            PlayerPrefs.SetString("highScoreName_" + i, highScoresNames[i]);
+        }
+        PlayerPrefs.Save();
+
         print("Quitting...");
 #if UNITY_EDITOR
         //Application.Quit() doesnt work in editor we use this function instead
@@ -348,9 +426,12 @@ public class GameManager : MonoBehaviour
     //this will be called when not running in the editor
         Application.Quit();
 #endif
-        print(Application.isPlaying);
     }
 
+    public static void SetPlayerActive(GameObject player, bool active)
+    {
+        player.SetActive(active);
+    }
     private void OnGUI()
     {
         //drawing the how to play screen

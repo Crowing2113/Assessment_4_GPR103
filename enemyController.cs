@@ -14,6 +14,7 @@ public class enemyController : MonoBehaviour
     public float speed;
     public float jumpHeight;
     public float attackRange, followRange;
+    public float attackAnimSpeed; //used for the attack coroutine
     //string
     public string[] enemyAnim; //array of animation names, make sure they match
     //bool
@@ -41,13 +42,16 @@ public class enemyController : MonoBehaviour
     //Animation Cycle
     private AnimationCycle animCyc = 0;
     //SerializeFields (these will show up in the inspector despite being private
+    //Booleans
     [SerializeField]
-    private bool grounded = true, isDead = false;
+    private bool grounded = true, isDead = false, tooClose = false;
+    private bool isJumping = false;
+    private bool isAttacking = false;
     [SerializeField]
     private float groundedTimer = 0.0f;
 
 
-
+    
     GameManager gm;//gamemanager script reference
     enum AnimationCycle
     {
@@ -94,10 +98,12 @@ public class enemyController : MonoBehaviour
 
         if (Mathf.Abs(xDist) > 0.5 || Mathf.Abs(yDist) > 0.5)
         {
+            tooClose = false;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
         }
-        else
+        else if(Mathf.Abs(xDist) < 0.5 && Mathf.Abs(yDist) < 0.5) //stops enemies from stopping  on platforms above the player
         {
+            tooClose = true;
             rb.constraints = RigidbodyConstraints2D.FreezeAll;
         }
         scale = rb.transform.localScale;
@@ -106,14 +112,14 @@ public class enemyController : MonoBehaviour
         ///IF target is within range then attack
         if (!isDead)
         {
-            if (distanceToTarget <= attackRange && attackTimer >= attackCooldown)
-                Attack(target);
-            else if (distanceToTarget <= followRange)
+            if (distanceToTarget <= attackRange && attackTimer >= attackCooldown && !isAttacking)       
+                StartCoroutine(Attack(target));
+            else if (distanceToTarget <= followRange && !tooClose && !isAttacking)
                 followTarget(distanceToTarget);
-            else if (!isDead)
+            else if (!isJumping && !isAttacking)
                 animCyc = AnimationCycle.IDLE;
         }
-        if (hp <= 0)
+        if (hp <= 0&&!isDead)
             StartCoroutine(Die());
         anim.Play(enemyAnim[(int)animCyc]);
 
@@ -148,9 +154,10 @@ public class enemyController : MonoBehaviour
 
     void followTarget(float targetDistance)
     {
-        //if the y distance is greater than 0.1 (any less should be on the same level, then jump to get closer to the player, otherwise move along the x axis
-        if (yDist > jumpHeight / 2 && grounded && (groundedTimer > 2.5f))
+        //if the y distance is greater than the jumpHeight (any less should be on the same level, then jump to get closer to the player, otherwise move along the x axis
+        if (yDist > jumpHeight / 3 && grounded && (groundedTimer > 2.5f))
         {
+            isJumping = true;
             currVel.y = jumpHeight;
             grounded = false;
             groundedTimer = 0;
@@ -158,30 +165,42 @@ public class enemyController : MonoBehaviour
         }
         else
         {
-            if (xDist > 0)
+            if (xDist > 0.2)
             {
 
                 currVel.x = speed;
                 scale.x = 1;
                 animCyc = AnimationCycle.WALK;
             }
-            else if (xDist < 0)
+            else if (xDist < -0.02)
             {
                 currVel.x = -speed;
                 scale.x = -1;
                 animCyc = AnimationCycle.WALK;
             }
             else
+            {
                 currVel.x = 0;
+                animCyc = AnimationCycle.IDLE;
+            }
+
+            
         }
     }
 
-    void Attack(GameObject target)
+    IEnumerator  Attack(GameObject target)
     {
+        isAttacking = true;
+        anim.SetBool("isAttacking", isAttacking);
+        anim.SetBool("isIdle", false);
+        anim.SetBool("isWalking", false);
+        anim.SetBool("isJumping", isJumping);
         animCyc = AnimationCycle.ATTACK;
+        currVel.x = 0;
+        yield return new WaitForSeconds(attackAnimSpeed);
+        //checking if the enemy is ranged
         if (ranged)
         {
-
             Transform t = hitBox.transform;
             GameObject go = Instantiate(proj, t.position, Quaternion.identity);
             
@@ -190,7 +209,6 @@ public class enemyController : MonoBehaviour
             {
                 go.GetComponent<Projectile>().speed *= -1;
                 go.GetComponent<Projectile>().pProj = false; ;
-
                 go.transform.localScale = scale;
             }
             //set the damage of the projectile to this enemy's atk value
@@ -200,6 +218,8 @@ public class enemyController : MonoBehaviour
         if (target.GetComponent<playerController>().hp <= 0 || target == null)
             getTarget();
         attackTimer = 0;
+        isAttacking = false;
+
     }
 
     IEnumerator Die()
@@ -210,10 +230,12 @@ public class enemyController : MonoBehaviour
         anim.Play(enemyAnim[(int)animCyc]);
         yield return new WaitForSeconds(0.25f);
         //set the coin's parent to the stage
-        //if this isn't done the coinc gets deleted along with this game object
+        //if this isn't done the coin gets deleted along with this game object
         GameObject temp = Instantiate(coin, this.transform);
         temp.transform.parent = gm.stage.transform;
-        gm.enemiesSpawned--;
+        gm.enemiesInLevel.Remove(this.gameObject);
+        gm.enemiesSpawned = gm.enemiesInLevel.Count;
+        GameManager.defeatedEnemies++;
         Destroy(this.gameObject);
     }
 
@@ -223,6 +245,8 @@ public class enemyController : MonoBehaviour
     /// </summary>
     public void TakeDamage(int dmg)
     {
+        if (isDead)
+            return;
         int tDmg = dmg - def;
         //this means we will always do at least 1 damage
         if (tDmg <= 0)
@@ -231,7 +255,10 @@ public class enemyController : MonoBehaviour
         anim.SetBool("hit", true);
         animCyc = AnimationCycle.HIT;
     }
-
+    public void SetAnimBool(string boolName, bool value)
+    {
+        anim.SetBool(boolName, value);
+    }
     private void OnCollisionEnter2D(Collision2D other)
     {
         if (other.gameObject.CompareTag("Enemy"))
@@ -243,6 +270,13 @@ public class enemyController : MonoBehaviour
             if (Vector2.Dot(other.contacts[i].normal, Vector2.up) > 0.9f)
             {
                 grounded = true;
+                isJumping = false;
+            }
+            if (other.gameObject.CompareTag("Platform") && (Vector2.Dot(other.contacts[i].normal, Vector2.left) > 0.5f || Vector2.Dot(other.contacts[i].normal, Vector2.right) > 0.5f))
+            {
+                currVel.x = 0;
+                rb.constraints = RigidbodyConstraints2D.FreezePositionX;
+                currVel.y = -1;
             }
         }
     }
